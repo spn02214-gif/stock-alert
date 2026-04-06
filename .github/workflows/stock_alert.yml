@@ -1,0 +1,52 @@
+name: Stock Alert
+
+on:
+  schedule:
+    - cron: '0 0-6 * * 1-5'    # 한국장: UTC 00-06 = KST 09-15 (평일 매 정각)
+    - cron: '30 14 * * 1-5'    # 미국장 개장: UTC 14:30 = KST 23:30 (평일)
+    - cron: '0 15-21 * * 1-5'  # 미국장: UTC 15-21 = KST 00-06 (평일 매 정각)
+  workflow_dispatch:
+
+jobs:
+  kr-market:
+    name: 한국장 스캔
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 0-6 * * 1-5'
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_ID: "8789518786"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 한국장 스캔
+        run: python -c "from main import scan_kr; scan_kr()"
+
+  us-market:
+    name: 미국장 스캔
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.schedule == '30 14 * * 1-5' ||
+      github.event.schedule == '0 15-21 * * 1-5'
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      CHAT_ID: "8789518786"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 미국장 스캔
+        run: python -c "from main import scan_us; scan_us()"

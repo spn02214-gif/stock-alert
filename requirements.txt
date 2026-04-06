@@ -1,0 +1,6 @@
+pykrx
+yfinance
+schedule
+pytz
+requests
+pandas
