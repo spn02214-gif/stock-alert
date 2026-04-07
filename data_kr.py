@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 
 REQUIRED_COLUMNS = ["open", "high", "low", "close", "volume"]
 KRX_COLUMN_RENAME = {
-    "시가": "open",
-    "고가": "high",
-    "저가": "low",
-    "종가": "close",
-    "거래량": "volume",
+    "\uc2dc\uac00": "open",
+    "\uace0\uac00": "high",
+    "\uc800\uac00": "low",
+    "\uc885\uac00": "close",
+    "\uac70\ub798\ub7c9": "volume",
 }
 
 
@@ -26,10 +26,27 @@ def get_market_date(offset: int = 0) -> str:
     return date.strftime("%Y%m%d")
 
 
+def get_latest_market_date(lookback_days: int = 10) -> str:
+    """Return the most recent date that pykrx can resolve for market data."""
+    for offset in range(0, lookback_days + 1):
+        date = get_market_date(-offset)
+        try:
+            kospi = stock.get_market_ticker_list(date=date, market="KOSPI")
+            kosdaq = stock.get_market_ticker_list(date=date, market="KOSDAQ")
+            if kospi or kosdaq:
+                return date
+        except Exception as exc:
+            logger.warning("Market date lookup failed for %s (%s)", date, exc)
+
+    raise RuntimeError("Could not resolve a valid KR market date from pykrx")
+
+
 def get_all_tickers() -> list[str]:
     """Return all KOSPI and KOSDAQ tickers."""
-    kospi = stock.get_market_ticker_list(market="KOSPI")
-    kosdaq = stock.get_market_ticker_list(market="KOSDAQ")
+    market_date = get_latest_market_date()
+    kospi = stock.get_market_ticker_list(date=market_date, market="KOSPI")
+    kosdaq = stock.get_market_ticker_list(date=market_date, market="KOSDAQ")
+    logger.info("Using KR market date: %s", market_date)
     return sorted(set(kospi + kosdaq))
 
 
@@ -39,8 +56,8 @@ def get_ohlcv(ticker: str, name: str = "", days: int = 30) -> pd.DataFrame:
     Columns: open, high, low, close, volume
     """
     label = f"{name}({ticker})" if name else ticker
-    end = datetime.today().strftime("%Y%m%d")
-    start = (datetime.today() - timedelta(days=days * 2)).strftime("%Y%m%d")
+    end = get_latest_market_date()
+    start = (datetime.strptime(end, "%Y%m%d") - timedelta(days=days * 2)).strftime("%Y%m%d")
 
     try:
         df = stock.get_market_ohlcv_by_date(start, end, ticker)
