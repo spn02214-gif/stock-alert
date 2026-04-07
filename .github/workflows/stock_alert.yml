@@ -25,6 +25,9 @@ jobs:
   kr-market:
     name: KR market scan
     runs-on: ubuntu-latest
+    concurrency:
+      group: kr-market-scan
+      cancel-in-progress: true
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.schedule == '0 0 * * 1-5' ||
@@ -94,6 +97,9 @@ jobs:
   us-market:
     name: US market scan
     runs-on: ubuntu-latest
+    concurrency:
+      group: us-market-scan
+      cancel-in-progress: true
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.schedule == '30 14 * * 1-5' ||

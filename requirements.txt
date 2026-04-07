@@ -1,6 +1,7 @@
-finance-datareader
+pykrx
 yfinance
 schedule
 pytz
 requests
 pandas
+numpy<2.0
