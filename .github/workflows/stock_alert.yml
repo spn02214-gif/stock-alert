@@ -53,7 +53,7 @@ jobs:
         run: |
           python - <<'PY'
           import importlib.metadata as md
-          packages = ["pykrx", "pandas", "requests", "yfinance", "schedule", "pytz"]
+          packages = ["finance-datareader", "pandas", "requests", "yfinance", "schedule", "pytz"]
           for name in packages:
               try:
                   print(f"{name}=={md.version(name)}")
@@ -61,23 +61,31 @@ jobs:
                   print(f"{name} version lookup failed: {exc}")
           PY
 
-      - name: Probe pykrx market date lookup
+      - name: Probe KR data sources
         run: |
           python - <<'PY'
-          from pykrx import stock
           from datetime import datetime, timedelta
+          import FinanceDataReader as fdr
 
-          today = datetime.utcnow().date()
-          print(f"UTC today: {today}")
+          today = datetime.utcnow().date().strftime("%Y-%m-%d")
+          start = (datetime.utcnow().date() - timedelta(days=14)).strftime("%Y-%m-%d")
+          print(f"Probe range: {start} -> {today}")
 
-          for offset in range(0, 11):
-              date = (today - timedelta(days=offset)).strftime("%Y%m%d")
+          for market in ("KOSPI", "KOSDAQ"):
               try:
-                  kospi = stock.get_market_ticker_list(date=date, market="KOSPI")
-                  kosdaq = stock.get_market_ticker_list(date=date, market="KOSDAQ")
-                  print(f"{date}: KOSPI={len(kospi)}, KOSDAQ={len(kosdaq)}")
+                  listing = fdr.StockListing(market)
+                  print(f"{market} listing rows: {len(listing)}")
+                  if not listing.empty:
+                      sample = str(listing.iloc[0]['Code']).zfill(6)
+                      for source in ("NAVER", "KRX"):
+                          symbol = f"{source}:{sample}"
+                          try:
+                              df = fdr.DataReader(symbol, start, today)
+                              print(f"{symbol}: rows={len(df)}")
+                          except Exception as inner_exc:
+                              print(f"{symbol}: ERROR {type(inner_exc).__name__}: {inner_exc}")
               except Exception as exc:
-                  print(f"{date}: ERROR {type(exc).__name__}: {exc}")
+                  print(f"{market}: ERROR {type(exc).__name__}: {exc}")
           PY
 
       - name: Run KR market scan
@@ -115,7 +123,7 @@ jobs:
         run: |
           python - <<'PY'
           import importlib.metadata as md
-          packages = ["pykrx", "pandas", "requests", "yfinance", "schedule", "pytz"]
+          packages = ["finance-datareader", "pandas", "requests", "yfinance", "schedule", "pytz"]
           for name in packages:
               try:
                   print(f"{name}=={md.version(name)}")
