@@ -1,4 +1,4 @@
-pykrx
+finance-datareader
 yfinance
 schedule
 pytz
