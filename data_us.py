@@ -1,36 +1,36 @@
 # -*- coding: utf-8 -*-
 """
-NASDAQ-100 data collection (yfinance)
+NASDAQ-100 data collection with yfinance.
 """
 import logging
-import yfinance as yf
+
 import pandas as pd
+import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
 NASDAQ100_WIKI_URL = "https://en.wikipedia.org/wiki/Nasdaq-100"
+REQUIRED_COLUMNS = ["open", "high", "low", "close", "volume"]
 
 
 def fetch_nasdaq100_tickers() -> list[str]:
     """Parse NASDAQ-100 constituent tickers from Wikipedia."""
     try:
         tables = pd.read_html(NASDAQ100_WIKI_URL)
-        # Find the table that has a 'Ticker' or 'Symbol' column
         for table in tables:
             for col in table.columns:
                 if str(col).strip().lower() in ("ticker", "symbol"):
-                    tickers = table[col].dropna().str.strip().tolist()
-                    tickers = [t for t in tickers if isinstance(t, str) and t.isalpha()]
+                    tickers = table[col].dropna().astype(str).str.strip().tolist()
+                    tickers = [ticker for ticker in tickers if ticker.isalpha()]
                     if len(tickers) >= 90:
                         logger.info("NASDAQ-100: parsed %d tickers from Wikipedia", len(tickers))
                         return tickers
-        raise ValueError("ticker column not found")
-    except Exception as e:
-        logger.error("Wikipedia parse failed: %s — using fallback list", e)
+        raise ValueError("Ticker column not found")
+    except Exception as exc:
+        logger.error("Wikipedia parse failed: %s - using fallback list", exc)
         return _FALLBACK_TICKERS
 
 
-# Fallback list (as of 2025) used when Wikipedia parsing fails
 _FALLBACK_TICKERS = [
     "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "AVGO", "COST",
     "NFLX", "ADBE", "AMD", "QCOM", "INTU", "CSCO", "TMUS", "AMGN", "PEP", "TXN",
@@ -47,26 +47,43 @@ _FALLBACK_TICKERS = [
 
 def get_ohlcv(ticker: str, days: int = 30) -> pd.DataFrame:
     """
-    Return OHLCV DataFrame for a single ticker (most recent `days` trading days).
+    Return an OHLCV DataFrame for a single ticker.
     Columns: open, high, low, close, volume
     """
     try:
-        period = f"{days * 2}d"  # extra buffer for trading days
+        period = f"{days * 2}d"
         df = yf.download(ticker, period=period, progress=False, auto_adjust=True)
-        if df.empty:
-            logger.warning("%s: no data returned — skipped", ticker)
+
+        if df is None or df.empty:
+            logger.warning("%s: no data returned - skipped", ticker)
             return pd.DataFrame()
-        # Flatten MultiIndex columns (yfinance 0.2+)
+
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
+
         df = df.rename(columns={
-            "Open": "open", "High": "high", "Low": "low",
-            "Close": "close", "Volume": "volume"
+            "Open": "open",
+            "High": "high",
+            "Low": "low",
+            "Close": "close",
+            "Volume": "volume",
         })
-        df = df[["open", "high", "low", "close", "volume"]].dropna()
+
+        missing = set(REQUIRED_COLUMNS) - set(df.columns)
+        if missing:
+            logger.warning("%s: missing columns %s - skipped", ticker, sorted(missing))
+            return pd.DataFrame()
+
+        df = df[REQUIRED_COLUMNS].copy()
+        df = df.apply(pd.to_numeric, errors="coerce").dropna().sort_index()
+
+        if len(df) < 21:
+            logger.warning("%s: insufficient OHLCV rows (%d) - skipped", ticker, len(df))
+            return pd.DataFrame()
+
         return df.tail(days)
-    except Exception as e:
-        logger.warning("%s: yfinance error — skipped (%s)", ticker, e)
+    except Exception as exc:
+        logger.warning("%s: yfinance error - skipped (%s)", ticker, exc)
         return pd.DataFrame()
 
 
@@ -77,12 +94,19 @@ def get_all_stocks_data(days: int = 25) -> dict:
     """
     tickers = fetch_nasdaq100_tickers()
     result = {}
+
     for ticker in tickers:
-        df = get_ohlcv(ticker, days=days)
-        if len(df) >= 21:
+        try:
+            df = get_ohlcv(ticker, days=days)
+            if df is None or df.empty:
+                continue
+
             result[ticker] = {
                 "name": ticker,
                 "ohlcv": df,
             }
+        except Exception as exc:
+            logger.warning("%s: stock data build error - skipped (%s)", ticker, exc)
+
     logger.info("US market data collection done: %d / %d stocks", len(result), len(tickers))
     return result

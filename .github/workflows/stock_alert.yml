@@ -2,7 +2,7 @@ name: Stock Alert
 
 on:
   schedule:
-    # 한국장: UTC 00-06 = KST 09-15 (평일 매 정각)
+    # KR market: UTC 00-06 = KST 09-15 on weekdays
     - cron: '0 0 * * 1-5'
     - cron: '0 1 * * 1-5'
     - cron: '0 2 * * 1-5'
@@ -10,7 +10,7 @@ on:
     - cron: '0 4 * * 1-5'
     - cron: '0 5 * * 1-5'
     - cron: '0 6 * * 1-5'
-    # 미국장: UTC 14:30 = KST 23:30, UTC 15-21 = KST 00-06 (평일)
+    # US market: UTC 14:30 = KST 23:30, UTC 15-21 = KST 00-06 on weekdays
     - cron: '30 14 * * 1-5'
     - cron: '0 15 * * 1-5'
     - cron: '0 16 * * 1-5'
@@ -23,7 +23,7 @@ on:
 
 jobs:
   kr-market:
-    name: 한국장 스캔
+    name: KR market scan
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' ||
@@ -37,6 +37,8 @@ jobs:
     env:
       BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       CHAT_ID: "8789518786"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     steps:
       - uses: actions/checkout@v4
 
@@ -44,14 +46,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 패키지 설치
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: 한국장 스캔
+      - name: Run KR market scan
         run: python -c "from main import scan_kr; scan_kr()"
 
   us-market:
-    name: 미국장 스캔
+    name: US market scan
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' ||
@@ -66,6 +68,8 @@ jobs:
     env:
       BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       CHAT_ID: "8789518786"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     steps:
       - uses: actions/checkout@v4
 
@@ -73,8 +77,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 패키지 설치
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: 미국장 스캔
+      - name: Run US market scan
         run: python -c "from main import scan_us; scan_us()"
