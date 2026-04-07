@@ -52,45 +52,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Show Python package versions
-        run: |
-          python - <<'PY'
-          import importlib.metadata as md
-          packages = ["finance-datareader", "pandas", "requests", "yfinance", "schedule", "pytz"]
-          for name in packages:
-              try:
-                  print(f"{name}=={md.version(name)}")
-              except Exception as exc:
-                  print(f"{name} version lookup failed: {exc}")
-          PY
-
-      - name: Probe KR data sources
-        run: |
-          python - <<'PY'
-          from datetime import datetime, timedelta
-          import FinanceDataReader as fdr
-
-          today = datetime.utcnow().date().strftime("%Y-%m-%d")
-          start = (datetime.utcnow().date() - timedelta(days=14)).strftime("%Y-%m-%d")
-          print(f"Probe range: {start} -> {today}")
-
-          for market in ("KOSPI", "KOSDAQ"):
-              try:
-                  listing = fdr.StockListing(market)
-                  print(f"{market} listing rows: {len(listing)}")
-                  if not listing.empty:
-                      sample = str(listing.iloc[0]['Code']).zfill(6)
-                      for source in ("NAVER", "KRX"):
-                          symbol = f"{source}:{sample}"
-                          try:
-                              df = fdr.DataReader(symbol, start, today)
-                              print(f"{symbol}: rows={len(df)}")
-                          except Exception as inner_exc:
-                              print(f"{symbol}: ERROR {type(inner_exc).__name__}: {inner_exc}")
-              except Exception as exc:
-                  print(f"{market}: ERROR {type(exc).__name__}: {exc}")
-          PY
-
       - name: Run KR market scan
         run: python -c "from main import scan_kr; scan_kr()"
 
@@ -124,18 +85,6 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-
-      - name: Show Python package versions
-        run: |
-          python - <<'PY'
-          import importlib.metadata as md
-          packages = ["finance-datareader", "pandas", "requests", "yfinance", "schedule", "pytz"]
-          for name in packages:
-              try:
-                  print(f"{name}=={md.version(name)}")
-              except Exception as exc:
-                  print(f"{name} version lookup failed: {exc}")
-          PY
 
       - name: Run US market scan
         run: python -c "from main import scan_us; scan_us()"
