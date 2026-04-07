@@ -30,10 +30,17 @@ def get_latest_market_date(lookback_days: int = 10) -> str:
     """Return the most recent date that pykrx can resolve for market data."""
     for offset in range(0, lookback_days + 1):
         date = get_market_date(-offset)
+        logger.info("Trying KR market date lookup: %s", date)
         try:
             kospi = stock.get_market_ticker_list(date=date, market="KOSPI")
             kosdaq = stock.get_market_ticker_list(date=date, market="KOSDAQ")
             if kospi or kosdaq:
+                logger.info(
+                    "Resolved KR market date: %s (KOSPI=%d, KOSDAQ=%d)",
+                    date,
+                    len(kospi),
+                    len(kosdaq),
+                )
                 return date
         except Exception as exc:
             logger.warning("Market date lookup failed for %s (%s)", date, exc)

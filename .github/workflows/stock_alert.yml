@@ -49,6 +49,37 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Show Python package versions
+        run: |
+          python - <<'PY'
+          import importlib.metadata as md
+          packages = ["pykrx", "pandas", "requests", "yfinance", "schedule", "pytz"]
+          for name in packages:
+              try:
+                  print(f"{name}=={md.version(name)}")
+              except Exception as exc:
+                  print(f"{name} version lookup failed: {exc}")
+          PY
+
+      - name: Probe pykrx market date lookup
+        run: |
+          python - <<'PY'
+          from pykrx import stock
+          from datetime import datetime, timedelta
+
+          today = datetime.utcnow().date()
+          print(f"UTC today: {today}")
+
+          for offset in range(0, 11):
+              date = (today - timedelta(days=offset)).strftime("%Y%m%d")
+              try:
+                  kospi = stock.get_market_ticker_list(date=date, market="KOSPI")
+                  kosdaq = stock.get_market_ticker_list(date=date, market="KOSDAQ")
+                  print(f"{date}: KOSPI={len(kospi)}, KOSDAQ={len(kosdaq)}")
+              except Exception as exc:
+                  print(f"{date}: ERROR {type(exc).__name__}: {exc}")
+          PY
+
       - name: Run KR market scan
         run: python -c "from main import scan_kr; scan_kr()"
 
@@ -79,6 +110,18 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Show Python package versions
+        run: |
+          python - <<'PY'
+          import importlib.metadata as md
+          packages = ["pykrx", "pandas", "requests", "yfinance", "schedule", "pytz"]
+          for name in packages:
+              try:
+                  print(f"{name}=={md.version(name)}")
+              except Exception as exc:
+                  print(f"{name} version lookup failed: {exc}")
+          PY
 
       - name: Run US market scan
         run: python -c "from main import scan_us; scan_us()"
