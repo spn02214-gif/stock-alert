@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 KOSPI and KOSDAQ market data collection with pykrx.
-Limited to top 300 stocks by market cap.
+Covers KOSPI200 + KOSDAQ150 index constituents.
 """
 import logging
 from datetime import datetime, timedelta
@@ -19,7 +19,10 @@ KRX_COLUMN_RENAME = {
     "종가": "close",
     "거래량": "volume",
 }
-TOP_N = 300
+
+# pykrx index codes
+KOSPI200_CODE = "1028"
+KOSDAQ150_CODE = "2203"
 
 
 def _today() -> str:
@@ -30,61 +33,52 @@ def _start_date(days: int) -> str:
     return (datetime.today() - timedelta(days=days)).strftime("%Y%m%d")
 
 
-def _get_recent_trading_date() -> str | None:
-    """Return the most recent date (up to 5 days back) with available KOSPI market cap data."""
-    for i in range(5):
-        date = (datetime.now() - timedelta(days=i)).strftime("%Y%m%d")
-        try:
-            df = stock.get_market_cap_by_ticker(date, market="KOSPI")
-            if df is not None and not df.empty:
-                return date
-        except Exception:
-            continue
-    return None
-
-
-def get_top_tickers_by_market_cap(n: int = TOP_N) -> list[tuple[str, str]]:
+def get_index_tickers() -> list[tuple[str, str]]:
     """
-    Return (ticker, name) pairs for the top n stocks by market cap
-    across KOSPI and KOSDAQ, using the most recent available trading date.
+    Return (ticker, name) pairs for KOSPI200 + KOSDAQ150 constituents.
+    Falls back to full KOSPI + KOSDAQ listing if index fetch fails.
     """
-    trading_date = _get_recent_trading_date()
-    if trading_date is None:
-        logger.error("Market cap: no trading date found within last 5 days")
-        return []
+    raw_tickers: list[str] = []
 
-    logger.info("Market cap: using date %s", trading_date)
-    frames = []
-
-    for market in ("KOSPI", "KOSDAQ"):
+    for code, label in ((KOSPI200_CODE, "KOSPI200"), (KOSDAQ150_CODE, "KOSDAQ150")):
         try:
-            df = stock.get_market_cap_by_ticker(trading_date, market=market)
-            if df is None or df.empty:
-                logger.warning("%s market cap data empty - skipped", market)
-                continue
-            frames.append(df[["시가총액"]])
+            constituents = stock.get_index_portfolio_deposit_file(code)
+            if constituents:
+                logger.info("%s: %d tickers loaded", label, len(constituents))
+                raw_tickers.extend(constituents)
+            else:
+                logger.warning("%s: empty result - skipped", label)
         except Exception as exc:
-            logger.warning("%s market cap fetch failed - skipped (%s)", market, exc)
+            logger.warning("%s: fetch failed - skipped (%s)", label, exc)
 
-    if not frames:
-        logger.error("No market cap data available from pykrx")
-        return []
+    if not raw_tickers:
+        logger.warning("Index fetch failed, falling back to get_market_ticker_list")
+        try:
+            kospi = stock.get_market_ticker_list(market="KOSPI")
+            kosdaq = stock.get_market_ticker_list(market="KOSDAQ")
+            raw_tickers = list(kospi) + list(kosdaq)
+            logger.info("Fallback: %d tickers loaded", len(raw_tickers))
+        except Exception as exc:
+            logger.error("Fallback ticker list fetch failed: %s", exc)
+            return []
 
-    combined = (
-        pd.concat(frames)
-        .sort_values("시가총액", ascending=False)
-        .head(n)
-    )
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    unique: list[str] = []
+    for t in raw_tickers:
+        if t not in seen:
+            seen.add(t)
+            unique.append(t)
 
-    result = []
-    for ticker in combined.index:
+    result: list[tuple[str, str]] = []
+    for ticker in unique:
         try:
             name = stock.get_market_ticker_name(ticker)
         except Exception:
             name = ticker
         result.append((ticker, name))
 
-    logger.info("Top %d tickers by market cap loaded (%d returned)", n, len(result))
+    logger.info("KR ticker list ready: %d stocks (KOSPI200 + KOSDAQ150)", len(result))
     return result
 
 
@@ -132,10 +126,10 @@ def get_ohlcv(ticker: str, name: str = "", days: int = 30) -> pd.DataFrame:
 
 def get_all_stocks_data(days: int = 25) -> dict:
     """
-    Collect OHLCV data for top 300 KOSPI + KOSDAQ stocks by market cap.
+    Collect OHLCV data for KOSPI200 + KOSDAQ150 stocks.
     Returns: {ticker: {"name": str, "ohlcv": DataFrame}}
     """
-    tickers = get_top_tickers_by_market_cap()
+    tickers = get_index_tickers()
     result = {}
 
     for ticker, name in tickers:
