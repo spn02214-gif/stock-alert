@@ -2,16 +2,38 @@ name: Stock Alert
 
 on:
   schedule:
-    - cron: '0 0-6 * * 1-5'    # 한국장: UTC 00-06 = KST 09-15 (평일 매 정각)
-    - cron: '30 14 * * 1-5'    # 미국장 개장: UTC 14:30 = KST 23:30 (평일)
-    - cron: '0 15-21 * * 1-5'  # 미국장: UTC 15-21 = KST 00-06 (평일 매 정각)
+    # 한국장: UTC 00-06 = KST 09-15 (평일 매 정각)
+    - cron: '0 0 * * 1-5'
+    - cron: '0 1 * * 1-5'
+    - cron: '0 2 * * 1-5'
+    - cron: '0 3 * * 1-5'
+    - cron: '0 4 * * 1-5'
+    - cron: '0 5 * * 1-5'
+    - cron: '0 6 * * 1-5'
+    # 미국장: UTC 14:30 = KST 23:30, UTC 15-21 = KST 00-06 (평일)
+    - cron: '30 14 * * 1-5'
+    - cron: '0 15 * * 1-5'
+    - cron: '0 16 * * 1-5'
+    - cron: '0 17 * * 1-5'
+    - cron: '0 18 * * 1-5'
+    - cron: '0 19 * * 1-5'
+    - cron: '0 20 * * 1-5'
+    - cron: '0 21 * * 1-5'
   workflow_dispatch:
 
 jobs:
   kr-market:
     name: 한국장 스캔
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 0-6 * * 1-5'
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.schedule == '0 0 * * 1-5' ||
+      github.event.schedule == '0 1 * * 1-5' ||
+      github.event.schedule == '0 2 * * 1-5' ||
+      github.event.schedule == '0 3 * * 1-5' ||
+      github.event.schedule == '0 4 * * 1-5' ||
+      github.event.schedule == '0 5 * * 1-5' ||
+      github.event.schedule == '0 6 * * 1-5'
     env:
       BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       CHAT_ID: "8789518786"
@@ -34,7 +56,13 @@ jobs:
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.schedule == '30 14 * * 1-5' ||
-      github.event.schedule == '0 15-21 * * 1-5'
+      github.event.schedule == '0 15 * * 1-5' ||
+      github.event.schedule == '0 16 * * 1-5' ||
+      github.event.schedule == '0 17 * * 1-5' ||
+      github.event.schedule == '0 18 * * 1-5' ||
+      github.event.schedule == '0 19 * * 1-5' ||
+      github.event.schedule == '0 20 * * 1-5' ||
+      github.event.schedule == '0 21 * * 1-5'
     env:
       BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       CHAT_ID: "8789518786"
