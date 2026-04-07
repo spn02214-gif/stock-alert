@@ -7,9 +7,6 @@ US market: 23:30 to 06:00 KST, every hour
 """
 import logging
 import time
-from datetime import datetime
-
-import pytz
 import schedule
 
 import alert
@@ -27,25 +24,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-KST = pytz.timezone("Asia/Seoul")
-
-
-def now_kst() -> datetime:
-    """Return the current time in KST."""
-    return datetime.now(KST)
-
-
 def scan_kr():
     """Scan all KOSPI and KOSDAQ stocks."""
-    now = now_kst()
-    hour = now.hour
-    minute = now.minute
-
-    in_session = (hour == 9 and minute >= 0) or (10 <= hour <= 14) or (hour == 15 and minute <= 30)
-    if not in_session:
-        logger.info("Outside KR market hours (%s) - skipped", now.strftime("%H:%M"))
-        return
-
     logger.info("=== KR market scan start ===")
     alert.send_scan_start("KR market (KOSPI+KOSDAQ)")
 
@@ -66,15 +46,6 @@ def scan_kr():
 
 def scan_us():
     """Scan NASDAQ-100 stocks."""
-    now = now_kst()
-    hour = now.hour
-    minute = now.minute
-
-    after_open = (hour == 23 and minute >= 30) or hour == 0 or (1 <= hour <= 5) or (hour == 6 and minute == 0)
-    if not after_open:
-        logger.info("Outside US market hours (%s) - skipped", now.strftime("%H:%M"))
-        return
-
     logger.info("=== US market scan start ===")
     alert.send_scan_start("US market (NASDAQ-100)")
 
