@@ -1,60 +1,83 @@
 # -*- coding: utf-8 -*-
 """
-KOSPI and KOSDAQ market data collection with pykrx.
+KOSPI and KOSDAQ market data collection with FinanceDataReader.
 """
 import logging
 from datetime import datetime, timedelta
 
+import FinanceDataReader as fdr
 import pandas as pd
-from pykrx import stock
 
 logger = logging.getLogger(__name__)
 
 REQUIRED_COLUMNS = ["open", "high", "low", "close", "volume"]
-KRX_COLUMN_RENAME = {
-    "\uc2dc\uac00": "open",
-    "\uace0\uac00": "high",
-    "\uc800\uac00": "low",
-    "\uc885\uac00": "close",
-    "\uac70\ub798\ub7c9": "volume",
+FDR_COLUMN_RENAME = {
+    "Open": "open",
+    "High": "high",
+    "Low": "low",
+    "Close": "close",
+    "Volume": "volume",
 }
+KR_MARKETS = ("KOSPI", "KOSDAQ")
+KR_PRICE_SOURCES = ("NAVER", "KRX")
 
 
 def get_market_date(offset: int = 0) -> str:
-    """Return YYYYMMDD with a signed day offset."""
+    """Return YYYY-MM-DD with a signed day offset."""
     date = datetime.today() + timedelta(days=offset)
-    return date.strftime("%Y%m%d")
+    return date.strftime("%Y-%m-%d")
 
 
-def get_latest_market_date(lookback_days: int = 10) -> str:
-    """Return the most recent date that pykrx can resolve for market data."""
-    for offset in range(0, lookback_days + 1):
-        date = get_market_date(-offset)
-        logger.info("Trying KR market date lookup: %s", date)
+def get_all_tickers() -> list[dict]:
+    """Return ticker metadata for all KOSPI and KOSDAQ symbols."""
+    frames = []
+
+    for market in KR_MARKETS:
         try:
-            kospi = stock.get_market_ticker_list(date=date, market="KOSPI")
-            kosdaq = stock.get_market_ticker_list(date=date, market="KOSDAQ")
-            if kospi or kosdaq:
-                logger.info(
-                    "Resolved KR market date: %s (KOSPI=%d, KOSDAQ=%d)",
-                    date,
-                    len(kospi),
-                    len(kosdaq),
-                )
-                return date
+            listing = fdr.StockListing(market).copy()
         except Exception as exc:
-            logger.warning("Market date lookup failed for %s (%s)", date, exc)
+            logger.warning("%s listing fetch failed - skipped (%s)", market, exc)
+            continue
 
-    raise RuntimeError("Could not resolve a valid KR market date from pykrx")
+        if listing.empty:
+            logger.warning("%s listing fetch returned empty - skipped", market)
+            continue
+
+        if "Code" not in listing.columns:
+            logger.warning("%s listing missing Code column - skipped", market)
+            continue
+
+        listing["Code"] = listing["Code"].astype(str).str.zfill(6)
+        listing["Name"] = listing.get("Name", listing["Code"]).astype(str)
+        listing["Market"] = market
+        frames.append(listing[["Code", "Name", "Market"]])
+
+    if not frames:
+        logger.error("No KR market listings available from FinanceDataReader")
+        return []
+
+    combined = pd.concat(frames, ignore_index=True).drop_duplicates(subset=["Code"])
+    logger.info("KR ticker listing loaded: %d symbols", len(combined))
+    return combined.to_dict("records")
 
 
-def get_all_tickers() -> list[str]:
-    """Return all KOSPI and KOSDAQ tickers."""
-    market_date = get_latest_market_date()
-    kospi = stock.get_market_ticker_list(date=market_date, market="KOSPI")
-    kosdaq = stock.get_market_ticker_list(date=market_date, market="KOSDAQ")
-    logger.info("Using KR market date: %s", market_date)
-    return sorted(set(kospi + kosdaq))
+def _fetch_ohlcv_from_source(ticker: str, source: str, start: str, end: str) -> pd.DataFrame:
+    symbol = f"{source}:{ticker}"
+    df = fdr.DataReader(symbol, start, end)
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    df = df.rename(columns=FDR_COLUMN_RENAME)
+    df.columns = [str(col).lower() for col in df.columns]
+
+    missing = set(REQUIRED_COLUMNS) - set(df.columns)
+    if missing:
+        logger.warning("%s: source %s missing columns %s", ticker, source, sorted(missing))
+        return pd.DataFrame()
+
+    df = df[REQUIRED_COLUMNS].copy()
+    df = df.apply(pd.to_numeric, errors="coerce").dropna().sort_index()
+    return df
 
 
 def get_ohlcv(ticker: str, name: str = "", days: int = 30) -> pd.DataFrame:
@@ -63,49 +86,39 @@ def get_ohlcv(ticker: str, name: str = "", days: int = 30) -> pd.DataFrame:
     Columns: open, high, low, close, volume
     """
     label = f"{name}({ticker})" if name else ticker
-    end = get_latest_market_date()
-    start = (datetime.strptime(end, "%Y%m%d") - timedelta(days=days * 2)).strftime("%Y%m%d")
+    end = get_market_date(0)
+    start = get_market_date(-(days * 2))
 
-    try:
-        df = stock.get_market_ohlcv_by_date(start, end, ticker)
+    for source in KR_PRICE_SOURCES:
+        try:
+            df = _fetch_ohlcv_from_source(ticker, source, start, end)
 
-        if df is None or df.empty:
-            logger.warning("%s: no OHLCV data returned - skipped", label)
-            return pd.DataFrame()
+            if df.empty:
+                logger.info("%s: no data from %s", label, source)
+                continue
 
-        df = df.rename(columns=KRX_COLUMN_RENAME)
-        df.columns = [str(col).lower() for col in df.columns]
+            if len(df) < 21:
+                logger.warning(
+                    "%s: insufficient OHLCV rows from %s (%d) - skipped",
+                    label,
+                    source,
+                    len(df),
+                )
+                return pd.DataFrame()
 
-        missing = set(REQUIRED_COLUMNS) - set(df.columns)
-        if missing:
-            logger.warning("%s: missing columns %s - skipped", label, sorted(missing))
-            return pd.DataFrame()
+            logger.info("%s: loaded OHLCV from %s (%d rows)", label, source, len(df))
+            return df.tail(days)
 
-        df = df[REQUIRED_COLUMNS].copy()
-        df = df.apply(pd.to_numeric, errors="coerce").dropna().sort_index()
+        except Exception as exc:
+            logger.warning("%s: %s fetch error - skipped (%s)", label, source, exc)
 
-        if df.empty:
-            logger.warning("%s: OHLCV became empty after cleanup - skipped", label)
-            return pd.DataFrame()
-
-        if len(df) < 21:
-            logger.warning("%s: insufficient OHLCV rows (%d) - skipped", label, len(df))
-            return pd.DataFrame()
-
-        return df.tail(days)
-
-    except Exception as exc:
-        logger.warning("%s: pykrx fetch error - skipped (%s)", label, exc)
-        return pd.DataFrame()
+    logger.warning("%s: no OHLCV data returned from any KR source - skipped", label)
+    return pd.DataFrame()
 
 
-def get_ticker_name(ticker: str) -> str:
-    """Return the ticker name from pykrx."""
-    try:
-        return stock.get_market_ticker_name(ticker)
-    except Exception as exc:
-        logger.warning("%s: ticker name lookup failed (%s)", ticker, exc)
-        return ticker
+def get_ticker_name(ticker_info: dict) -> str:
+    """Return the ticker name from listing metadata."""
+    return str(ticker_info.get("Name", ticker_info.get("Code", "")))
 
 
 def get_all_stocks_data(days: int = 25) -> dict:
@@ -116,9 +129,10 @@ def get_all_stocks_data(days: int = 25) -> dict:
     tickers = get_all_tickers()
     result = {}
 
-    for ticker in tickers:
+    for ticker_info in tickers:
         try:
-            name = get_ticker_name(ticker)
+            ticker = str(ticker_info["Code"]).zfill(6)
+            name = get_ticker_name(ticker_info)
             df = get_ohlcv(ticker, name=name, days=days)
 
             if df is None or df.empty:
@@ -129,6 +143,7 @@ def get_all_stocks_data(days: int = 25) -> dict:
                 "ohlcv": df,
             }
         except Exception as exc:
+            ticker = ticker_info.get("Code", "UNKNOWN")
             logger.warning("%s: stock data build error - skipped (%s)", ticker, exc)
 
     logger.info("KR market data collection done: %d / %d stocks", len(result), len(tickers))
