@@ -610,7 +610,7 @@
 
   <div class="hero-stats">
     <div class="stat-item">
-      <div class="stat-num">2,500<span style="font-size:24px">+</span></div>
+      <div class="stat-num">398</div>
       <div class="stat-label">STOCKS COVERED</div>
     </div>
     <div class="stat-item">
@@ -618,8 +618,8 @@
       <div class="stat-label">OPERATING COST</div>
     </div>
     <div class="stat-item">
-      <div class="stat-num">1<span style="font-size:24px">HR</span></div>
-      <div class="stat-label">SCAN INTERVAL</div>
+      <div class="stat-num">1<span style="font-size:24px">DAILY</span></div>
+      <div class="stat-label">KR SCAN (POST-MARKET)</div>
     </div>
     <div class="stat-item">
       <div class="stat-num">4</div>
@@ -675,7 +675,7 @@
     <div class="flow-step">
       <div class="flow-icon">DATA</div>
       <div class="flow-name">시세 수집</div>
-      <div class="flow-desc">pykrx (한국) / yfinance (미국) API 호출</div>
+      <div class="flow-desc">FinanceDataReader (한국) / yfinance (미국) API 호출</div>
     </div>
     <div class="flow-step">
       <div class="flow-icon">LOGIC</div>
@@ -770,9 +770,9 @@
     <tbody>
       <tr>
         <td>스캔 주기</td>
-        <td>1시간</td>
-        <td>10분, 30분</td>
-        <td>2~3일 스윙에 충분. GitHub 무료 한도(2,000분/월) 내 여유 확보. 노이즈 감소.</td>
+        <td>장마감 후 1회</td>
+        <td>장중 매 1시간, 10분</td>
+        <td>확정 일봉 데이터 기준으로 신호 정확도 높임. 주간 스윙 목적에 최적.</td>
       </tr>
       <tr>
         <td>실행 환경</td>
@@ -782,9 +782,9 @@
       </tr>
       <tr>
         <td>한국 데이터</td>
-        <td>pykrx</td>
-        <td>증권사 API (키움 등)</td>
-        <td>무료, 별도 인증 불필요, KOSPI+KOSDAQ 전종목 커버.</td>
+        <td>FinanceDataReader</td>
+        <td>pykrx, 증권사 API</td>
+        <td>무료, GitHub Actions 환경에서 안정적. pykrx는 KRX IP 차단으로 클라우드 환경 동작 불가 확인.</td>
       </tr>
       <tr>
         <td>미국 종목 범위</td>
@@ -824,8 +824,8 @@
     </div>
     <div class="infra-item">
       <div class="infra-icon">📊</div>
-      <div class="infra-name">pykrx + yfinance</div>
-      <div class="infra-desc">한국·미국 주가 데이터 API. 설치만으로 전종목 시세 접근 가능. 15분 지연 데이터.</div>
+      <div class="infra-name">FinanceDataReader + yfinance</div>
+      <div class="infra-desc">한국·미국 주가 데이터. FDR은 네이버 등 다중 소스로 KRX IP 차단 우회. 확정 일봉 기준 분석.</div>
       <div class="infra-badge">FREE · NO AUTH</div>
     </div>
     <div class="infra-item">
@@ -839,13 +839,13 @@
   <div class="schedule-grid" style="margin-top: 2px;">
     <div class="schedule-item">
       <div class="schedule-market">🇰🇷 한국장</div>
-      <div class="schedule-time">09:00 ~ 15:00 KST · 평일 매 정각</div>
-      <div class="schedule-desc">KOSPI + KOSDAQ 전종목 약 2,400개 스캔</div>
+      <div class="schedule-time">16:30 KST · 평일 1회 (장마감 후)</div>
+      <div class="schedule-desc">시가총액 상위 300종목 · 확정 일봉 데이터 기준</div>
     </div>
     <div class="schedule-item">
       <div class="schedule-market">🇺🇸 미국장</div>
       <div class="schedule-time">23:30 ~ 06:00 KST · 평일 매 정각</div>
-      <div class="schedule-desc">나스닥100 종목 스캔</div>
+      <div class="schedule-desc">나스닥100 종목 스캔 · 98/100 정상 수집</div>
     </div>
   </div>
 </section>
@@ -859,9 +859,9 @@
 
   <div class="metrics-grid">
     <div class="metric-item">
-      <div class="metric-value">2,500<span style="font-size:28px">+</span></div>
+      <div class="metric-value">398</div>
       <div class="metric-label">커버 종목 수</div>
-      <div class="metric-sub">KOSPI+KOSDAQ+NASDAQ100</div>
+      <div class="metric-sub">한국 상위 300 + 나스닥100</div>
     </div>
     <div class="metric-item">
       <div class="metric-value">0<span style="font-size:28px">원</span></div>
@@ -879,9 +879,9 @@
       <div class="metric-sub">클라우드 완전 자동 실행</div>
     </div>
     <div class="metric-item">
-      <div class="metric-value">~51<span style="font-size:28px">초</span></div>
+      <div class="metric-value">~5<span style="font-size:28px">분</span></div>
       <div class="metric-label">1회 실행 시간</div>
-      <div class="metric-sub">컨테이너 생성~종료 기준</div>
+      <div class="metric-sub">300종목 수집 기준</div>
     </div>
     <div class="metric-item">
       <div class="metric-value">5<span style="font-size:28px">개</span></div>
@@ -906,13 +906,13 @@
     </div>
     <div class="learning-item">
       <div class="learning-num">LEARNING 02</div>
-      <div class="learning-title">비용·효율 균형 설계</div>
-      <div class="learning-desc">무료 인프라 제약 안에서 커버리지를 최대화했다. 스캔 주기를 10분에서 1시간으로 조정한 것은 기술 결정이 아니라 목적 기반 설계 결정이다.</div>
+      <div class="learning-title">인프라 제약이 설계를 바꾼다</div>
+      <div class="learning-desc">pykrx가 GitHub Actions(해외 IP)에서 KRX 차단으로 동작 불가. 코드 문제가 아닌 인프라 제약을 식별하고 FDR로 데이터 소스를 교체해 해결했다.</div>
     </div>
     <div class="learning-item">
       <div class="learning-num">LEARNING 03</div>
-      <div class="learning-title">기획에서 구현까지 완결</div>
-      <div class="learning-desc">조건 설계에서 끝내지 않고 Claude Code로 실제 작동하는 시스템까지 완성했다. 작동하는 결과물이 포트폴리오의 증거가 된다.</div>
+      <div class="learning-title">전략과 시스템 구조의 정합성</div>
+      <div class="learning-desc">장중 스캔은 미확정 데이터로 신호 오류 가능성이 있다. 주간 스윙 전략에 맞게 장마감 후 1회 스캔으로 변경해 데이터 정확도와 전략 목적을 일치시켰다.</div>
     </div>
   </div>
 </section>
