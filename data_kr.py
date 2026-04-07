@@ -30,17 +30,36 @@ def _start_date(days: int) -> str:
     return (datetime.today() - timedelta(days=days)).strftime("%Y%m%d")
 
 
+def _get_recent_trading_date(max_lookback: int = 7) -> str:
+    """
+    Find the most recent date that has KOSPI market cap data.
+    Tries today first, then steps back up to max_lookback calendar days.
+    """
+    for offset in range(max_lookback + 1):
+        date = (datetime.today() - timedelta(days=offset)).strftime("%Y%m%d")
+        try:
+            df = stock.get_market_cap_by_ticker(date, market="KOSPI")
+            if df is not None and not df.empty:
+                if offset > 0:
+                    logger.info("Market cap: no data for today, using %s (%d day(s) back)", date, offset)
+                return date
+        except Exception:
+            continue
+    logger.warning("Market cap: could not find recent trading date, falling back to today")
+    return _today()
+
+
 def get_top_tickers_by_market_cap(n: int = TOP_N) -> list[tuple[str, str]]:
     """
     Return (ticker, name) pairs for the top n stocks by market cap
     across KOSPI and KOSDAQ.
     """
-    today = _today()
+    trading_date = _get_recent_trading_date()
     frames = []
 
     for market in ("KOSPI", "KOSDAQ"):
         try:
-            df = stock.get_market_cap_by_ticker(today, market=market)
+            df = stock.get_market_cap_by_ticker(trading_date, market=market)
             if df is None or df.empty:
                 logger.warning("%s market cap data empty - skipped", market)
                 continue
