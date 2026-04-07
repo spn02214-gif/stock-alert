@@ -1,5 +1,6 @@
+# -*- coding: utf-8 -*-
 """
-나스닥100 데이터 수집 (yfinance)
+NASDAQ-100 data collection (yfinance)
 """
 import logging
 import yfinance as yf
@@ -11,25 +12,25 @@ NASDAQ100_WIKI_URL = "https://en.wikipedia.org/wiki/Nasdaq-100"
 
 
 def fetch_nasdaq100_tickers() -> list[str]:
-    """Wikipedia에서 나스닥100 구성 종목 티커 파싱."""
+    """Parse NASDAQ-100 constituent tickers from Wikipedia."""
     try:
         tables = pd.read_html(NASDAQ100_WIKI_URL)
-        # 'Ticker' 또는 'Symbol' 컬럼을 가진 테이블 탐색
+        # Find the table that has a 'Ticker' or 'Symbol' column
         for table in tables:
             for col in table.columns:
                 if str(col).strip().lower() in ("ticker", "symbol"):
                     tickers = table[col].dropna().str.strip().tolist()
                     tickers = [t for t in tickers if isinstance(t, str) and t.isalpha()]
                     if len(tickers) >= 90:
-                        logger.info("나스닥100 종목 %d개 파싱 완료 (Wikipedia)", len(tickers))
+                        logger.info("NASDAQ-100: parsed %d tickers from Wikipedia", len(tickers))
                         return tickers
-        raise ValueError("티커 컬럼을 찾을 수 없음")
+        raise ValueError("ticker column not found")
     except Exception as e:
-        logger.error("Wikipedia 파싱 실패: %s — 폴백 리스트 사용", e)
+        logger.error("Wikipedia parse failed: %s — using fallback list", e)
         return _FALLBACK_TICKERS
 
 
-# Wikipedia 파싱 실패 시 사용할 폴백 (2025년 기준)
+# Fallback list (as of 2025) used when Wikipedia parsing fails
 _FALLBACK_TICKERS = [
     "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "AVGO", "COST",
     "NFLX", "ADBE", "AMD", "QCOM", "INTU", "CSCO", "TMUS", "AMGN", "PEP", "TXN",
@@ -46,16 +47,16 @@ _FALLBACK_TICKERS = [
 
 def get_ohlcv(ticker: str, days: int = 30) -> pd.DataFrame:
     """
-    단일 종목 OHLCV 반환
-    컬럼: open, high, low, close, volume
+    Return OHLCV DataFrame for a single ticker (most recent `days` trading days).
+    Columns: open, high, low, close, volume
     """
     try:
-        period = f"{days * 2}d"  # 영업일 여유분
+        period = f"{days * 2}d"  # extra buffer for trading days
         df = yf.download(ticker, period=period, progress=False, auto_adjust=True)
         if df.empty:
-            logger.warning("%s: 데이터 없음 — 스킵", ticker)
+            logger.warning("%s: no data returned — skipped", ticker)
             return pd.DataFrame()
-        # MultiIndex 평탄화 (yfinance 0.2+)
+        # Flatten MultiIndex columns (yfinance 0.2+)
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
         df = df.rename(columns={
@@ -65,14 +66,14 @@ def get_ohlcv(ticker: str, days: int = 30) -> pd.DataFrame:
         df = df[["open", "high", "low", "close", "volume"]].dropna()
         return df.tail(days)
     except Exception as e:
-        logger.warning("%s: yfinance 오류 — 스킵 (%s)", ticker, e)
+        logger.warning("%s: yfinance error — skipped (%s)", ticker, e)
         return pd.DataFrame()
 
 
 def get_all_stocks_data(days: int = 25) -> dict:
     """
-    나스닥100 전종목 데이터 수집
-    반환: {ticker: {"name": str, "ohlcv": DataFrame}}
+    Collect OHLCV data for all NASDAQ-100 stocks.
+    Returns: {ticker: {"name": str, "ohlcv": DataFrame}}
     """
     tickers = fetch_nasdaq100_tickers()
     result = {}
@@ -83,5 +84,5 @@ def get_all_stocks_data(days: int = 25) -> dict:
                 "name": ticker,
                 "ohlcv": df,
             }
-    logger.info("나스닥100 데이터 수집 완료: %d / %d 종목", len(result), len(tickers))
+    logger.info("US market data collection done: %d / %d stocks", len(result), len(tickers))
     return result

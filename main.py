@@ -1,8 +1,9 @@
+# -*- coding: utf-8 -*-
 """
-스케줄러 - 한국장/미국장 시간 분리
+Scheduler — separates KR market and US market scan times
 
-한국장: 09:00 ~ 15:30 (KST), 매 1시간
-미국장: 23:30 ~ 06:00 (KST 기준), 매 1시간
+KR market : 09:00 ~ 15:30 KST, every hour
+US market : 23:30 ~ 06:00 KST, every hour
 """
 import logging
 import schedule
@@ -33,90 +34,89 @@ def now_kst() -> datetime:
 
 
 # ────────────────────────────────────────────
-# 스캔 함수
+# Scan functions
 # ────────────────────────────────────────────
 
 def scan_kr():
-    """KOSPI+KOSDAQ 전종목 스캔"""
+    """Scan all KOSPI + KOSDAQ stocks."""
     now = now_kst()
     hour = now.hour
     minute = now.minute
 
-    # 한국장 운영 시간: 09:00 ~ 15:30
+    # KR market session: 09:00 ~ 15:30 KST
     in_session = (hour == 9 and minute >= 0) or (10 <= hour <= 14) or (hour == 15 and minute <= 30)
     if not in_session:
-        logger.info("한국장 운영 시간 외 (%s) — 스킵", now.strftime("%H:%M"))
+        logger.info("Outside KR market hours (%s) — skipped", now.strftime("%H:%M"))
         return
 
-    logger.info("=== 한국장 스캔 시작 ===")
-    alert.send_scan_start("한국장(KOSPI+KOSDAQ)")
+    logger.info("=== KR market scan start ===")
+    alert.send_scan_start("KR market (KOSPI+KOSDAQ)")
     try:
         stocks_data = data_kr.get_all_stocks_data()
         signals = condition.filter_stocks(stocks_data)
-        logger.info("한국 조건 충족: %d종목", len(signals))
+        logger.info("KR signals found: %d", len(signals))
         if signals:
             alert.send_kr_alerts(signals)
         else:
-            alert.send_no_signal("한국장")
+            alert.send_no_signal("KR market")
     except Exception as e:
-        logger.exception("한국장 스캔 오류: %s", e)
-        alert.send_message(f"⚠️ 한국장 스캔 오류: {e}")
+        logger.exception("KR market scan error: %s", e)
+        alert.send_message(f"⚠️ KR market scan error: {e}")
 
 
 def scan_us():
-    """나스닥100 스캔"""
+    """Scan NASDAQ-100 stocks."""
     now = now_kst()
     hour = now.hour
     minute = now.minute
 
-    # 미국장 운영 시간(KST): 23:30 ~ 06:00
-    # 23:30 이후 또는 06:00 이전
+    # US market session (KST): 23:30 ~ 06:00
     after_open = (hour == 23 and minute >= 30) or hour == 0 or (1 <= hour <= 5) or (hour == 6 and minute == 0)
     if not after_open:
-        logger.info("미국장 운영 시간 외 (%s) — 스킵", now.strftime("%H:%M"))
+        logger.info("Outside US market hours (%s) — skipped", now.strftime("%H:%M"))
         return
 
-    logger.info("=== 미국장 스캔 시작 ===")
-    alert.send_scan_start("미국장(NASDAQ100)")
+    logger.info("=== US market scan start ===")
+    alert.send_scan_start("US market (NASDAQ-100)")
     try:
         stocks_data = data_us.get_all_stocks_data()
         signals = condition.filter_stocks(stocks_data)
-        logger.info("미국 조건 충족: %d종목", len(signals))
+        logger.info("US signals found: %d", len(signals))
         if signals:
             alert.send_us_alerts(signals)
         else:
-            alert.send_no_signal("미국장")
+            alert.send_no_signal("US market")
     except Exception as e:
-        logger.exception("미국장 스캔 오류: %s", e)
-        alert.send_message(f"⚠️ 미국장 스캔 오류: {e}")
+        logger.exception("US market scan error: %s", e)
+        alert.send_message(f"⚠️ US market scan error: {e}")
 
 
 # ────────────────────────────────────────────
-# 스케줄 등록 (매 1시간, 정각)
+# Schedule registration (every hour, on the hour)
 # ────────────────────────────────────────────
 
 def setup_schedule():
-    # 한국장: 09:00 ~ 15:00 매 정각 (15:30 마감 전 마지막 스캔은 15:00)
+    # KR market: 09:00 ~ 15:00 KST, on the hour (last scan before 15:30 close)
     for h in range(9, 16):
         schedule.every().day.at(f"{h:02d}:00").do(scan_kr)
 
-    # 미국장: 23:30, 00:00 ~ 06:00 매 정각
+    # US market: 23:30, then 00:00 ~ 06:00 KST, on the hour
     schedule.every().day.at("23:30").do(scan_us)
     for h in range(0, 7):
         schedule.every().day.at(f"{h:02d}:00").do(scan_us)
 
-    logger.info("스케줄 등록 완료")
-    logger.info("한국장 스캔: 09:00 ~ 15:00 (매 정각)")
-    logger.info("미국장 스캔: 23:30, 00:00 ~ 06:00 (매 정각)")
+    logger.info("Schedule registered")
+    logger.info("KR market scan: 09:00 ~ 15:00 KST (hourly)")
+    logger.info("US market scan: 23:30, 00:00 ~ 06:00 KST (hourly)")
 
 
 # ────────────────────────────────────────────
-# 진입점
+# Entry point
 # ────────────────────────────────────────────
 
 if __name__ == "__main__":
-    logger.info("주식 알림 시스템 시작")
-    alert.send_message("🚀 주식 알림 시스템 시작")
+    logger.info("Stock alert system started")
+    alert.send_message("🚀 Stock alert system started")
 
     setup_schedule()
 
